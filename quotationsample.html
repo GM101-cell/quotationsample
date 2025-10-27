@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAK Elevators - Quotation Generator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Google Font 'Inter' for a clean, modern look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Load jsPDF and html2canvas for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        /* Custom styles for the app */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Style for the quotation preview that will be converted to PDF */
+        #quotationPreview {
+            /* This ensures html2canvas captures the white background and border */
+            background-color: #ffffff;
+            /* A4 aspect ratio approximation for better PDF preview */
+            /* width: 210mm; height: 297mm; */
+            /* We'll use max-width for responsiveness */
+            width: 100%;
+            max-width: 800px; /* Approx A4 width at 96dpi */
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Simple spinning loader */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #065f46; /* Using a deep green */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen antialiased">
+
+    <!-- Main Container -->
+    <div class="container mx-auto p-4 py-8 md:p-12 max-w-5xl">
+
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-blue-800">
+                MAK Elevators & Escalators
+            </h1>
+            <p class="text-xl text-gray-600 mt-2">
+                Premium Quotation Generator
+            </p>
+        </header>
+
+        <!-- Form Section -->
+        <div class="bg-white shadow-2xl rounded-2xl p-6 md:p-10">
+            <form id="quotationForm" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Party Name -->
+                    <div>
+                        <label for="partyName" class="block text-sm font-medium text-gray-700 mb-1">Party Name</label>
+                        <input type="text" id="partyName" name="partyName" placeholder="e.g., Apex Constructions" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition">
+                    </div>
+
+                    <!-- Type of Lift -->
+                    <div>
+                        <label for="liftType" class="block text-sm font-medium text-gray-700 mb-1">Type of Lift</label>
+                        <select id="liftType" name="liftType" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition bg-white">
+                            <option>Passenger</option>
+                            <option>Freight</option>
+                            <option>Home</option>
+                            <option>Hospital</option>
+                            <option>Capsule</option>
+                        </select>
+                    </div>
+
+                    <!-- Site Name -->
+                    <div>
+                        <label for="siteName" class="block text-sm font-medium text-gray-700 mb-1">Site Name / Address</label>
+                        <input type="text" id="siteName" name="siteName" placeholder="e.g., Greenfield Towers, Pune" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition">
+                    </div>
+
+                    <!-- Advance Payment -->
+                    <div>
+                        <label for="advancePayment" class="block text-sm font-medium text-gray-700 mb-1">Advance Payment (₹)</label>
+                        <div class="flex relative">
+                            <span class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                                ₹
+                            </span>
+                            <input type="number" id="advancePayment" name="advancePayment" placeholder="50000" class="w-full p-3 border border-gray-300 rounded-r-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generate Button -->
+                <div class="text-center pt-4">
+                    <button type="button" id="generateBtn" class="w-full md:w-auto px-12 py-4 bg-blue-700 text-white font-bold text-lg rounded-lg shadow-lg hover:bg-blue-800 transition-all duration-300 transform hover:scale-105">
+                        Generate Quotation
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Quotation Preview Section (Initially Hidden) -->
+        <div id="quotationPreviewContainer" class="mt-12 hidden">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">Quotation Preview</h2>
+            
+            <!-- PDF Download Button -->
+            <div class="text-center mb-6">
+                <button type="button" id="downloadBtn" class="w-full md:w-auto px-10 py-3 bg-green-700 text-white font-bold rounded-lg shadow-lg hover:bg-green-800 transition-all duration-300 transform hover:scale-105">
+                    Download as PDF
+                </button>
+                <div id="pdfLoading" class="hidden flex justify-center items-center mt-4 space-x-2 text-green-700">
+                    <div class="loader"></div>
+                    <span>Generating PDF, please wait...</span>
+                </div>
+            </div>
+
+            <!-- This is the element that will be converted to PDF -->
+            <div id="quotationPreview" class="border-4 border-blue-800 shadow-2xl rounded-lg overflow-hidden">
+                <!-- Quotation Content (will be injected by JS) -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Simple Message Modal (Initially Hidden) -->
+    <div id="messageModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 hidden transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl p-6 md:p-8 max-w-sm w-full text-center">
+            <h3 class="text-2xl font-bold text-red-600 mb-4">Error</h3>
+            <p id="messageText" class="text-gray-700 text-lg mb-6"></p>
+            <button id="closeModalBtn" class="px-6 py-2 bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:bg-blue-800 transition">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Ensure jsPDF is available on the window object
+        window.jsPDF = window.jspdf.jsPDF;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Form Elements
+            const quotationForm = document.getElementById('quotationForm');
+            const partyName = document.getElementById('partyName');
+            const liftType = document.getElementById('liftType');
+            const siteName = document.getElementById('siteName');
+            const advancePayment = document.getElementById('advancePayment');
+            
+            // Buttons
+            const generateBtn = document.getElementById('generateBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const pdfLoading = document.getElementById('pdfLoading');
+
+            // Preview & Modal Elements
+            const previewContainer = document.getElementById('quotationPreviewContainer');
+            const previewContent = document.getElementById('quotationPreview');
+            const modal = document.getElementById('messageModal');
+            const messageText = document.getElementById('messageText');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+
+            // Quotation Counter
+            let quotationCounter = 1;
+
+            // --- Modal Functions ---
+            function showMessage(message) {
+                messageText.textContent = message;
+                modal.classList.remove('hidden');
+            }
+
+            closeModalBtn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+            });
+
+            // --- Generate Quotation Function ---
+            generateBtn.addEventListener('click', () => {
+                // 1. Get values
+                const party = partyName.value.trim();
+                const lift = liftType.value;
+                const site = siteName.value.trim();
+                const advance = advancePayment.value;
+
+                // 2. Validate
+                if (!party || !site || !advance) {
+                    showMessage('Please fill in all fields (Party Name, Site Name, and Advance Payment).');
+                    return;
+                }
+
+                // 3. Generate Unique Data
+                const currentYear = new Date().getFullYear();
+                const paddedId = String(quotationCounter++).padStart(3, '0');
+                const quotationId = `QTN-${currentYear}-${paddedId}`;
+                
+                const currentDate = new Date().toLocaleDateString('en-GB', {
+                    day: 'numeric', month: 'long', year: 'numeric'
+                });
+
+                const formattedAdvance = Number(advance).toLocaleString('en-IN', {
+                    style: 'currency',
+                    currency: 'INR',
+                    minimumFractionDigits: 0
+                });
+
+                // 4. Create Quotation HTML
+                const quotationHTML = `
+                    <!-- PDF Header -->
+                    <div class="p-8 md:p-12 bg-blue-800 text-white">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-4xl font-extrabold">MAK Elevators & Escalators</h2>
+                                <p class="text-lg text-blue-200">makllpgmv@gmail.com</p>
+                            </div>
+                            <div class="text-right">
+                                <h3 class="text-3xl font-bold">QUOTATION</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PDF Sub-Header (ID and Date) -->
+                    <div class="p-8 md:p-12 border-b-2 border-gray-200">
+                        <div class="flex justify-between items-center text-gray-700">
+                            <div>
+                                <p class="text-sm font-medium">QUOTATION ID:</p>
+                                <p class="text-lg font-bold text-black">${quotationId}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-medium">DATE:</p>
+                                <p class="text-lg font-bold text-black">${currentDate}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PDF Body (Client Info & Details) -->
+                    <div class="p-8 md:p-12 space-y-8">
+                        <!-- Client Info -->
+                        <div>
+                            <p class="text-sm font-medium text-gray-500 mb-1">PREPARED FOR:</p>
+                            <h4 class="text-2xl font-bold text-black">${party}</h4>
+                            <p class="text-lg text-gray-700">${site}</p>
+                        </div>
+
+                        <!-- Details Table -->
+                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                            <table class="w-full">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Description</th>
+                                        <th class="p-4 text-right text-sm font-semibold text-gray-600 uppercase tracking-wider">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td class="p-4 font-medium text-gray-800">Type of Lift</td>
+                                        <td class="p-4 text-right text-gray-700">${lift}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-4 font-medium text-gray-800">Total Estimated Cost</td>
+                                        <td class="p-4 text-right text-gray-700 font-bold">Calculated on Site</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Highlighted Advance Payment -->
+                        <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-900 p-5 rounded-lg shadow-sm">
+                            <p class="text-lg font-semibold">Advance Payment Required:</p>
+                            <p class="text-3xl font-extrabold">${formattedAdvance}</p>
+                        </div>
+
+                        <!-- Delivery Time -->
+                        <div class="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                            <p class="font-semibold text-gray-800">Estimated Installation Timeline:</p>
+                            <p class="text-gray-700">4–6 weeks from the date of advance payment realization.</p>
+                        </div>
+                    </div>
+
+                    <!-- PDF Footer (Signature & Tagline) -->
+                    <div class="p-8 md:p-12 mt-12 bg-gray-100 border-t-2 border-gray-200">
+                        <div class="flex justify-between items-end">
+                            <div>
+                                <p class="text-sm text-gray-600 mb-6">Authorized Signatory,</p>
+                                <p class="text-xl font-bold text-black">Salim Shaikh</p>
+                                <p class="text-gray-700">Owner, MAK Elevators & Escalators</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-lg font-bold italic text-blue-800">
+                                    "Rising Above the Ordinary."
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Final Brand Footer -->
+                    <div class="p-6 bg-blue-900 text-center text-blue-200 text-sm">
+                        <p>MAK Elevators & Escalators – Bringing Safety, Comfort, and Innovation to Every Floor.</p>
+                    </div>
+                `;
+
+                // 5. Inject HTML and show preview
+                previewContent.innerHTML = quotationHTML;
+                previewContainer.classList.remove('hidden');
+                
+                // Scroll to the preview
+                previewContainer.scrollIntoView({ behavior: 'smooth' });
+            });
+
+            // --- Download PDF Function ---
+            downloadBtn.addEventListener('click', async () => {
+                const content = document.getElementById('quotationPreview');
+                const partyNameValue = partyName.value.trim() || 'Client';
+                const fileName = `Quotation-MAK-${partyNameValue.replace(/\s+/g, '-')}.pdf`;
+
+                // Show loader, hide button
+                downloadBtn.classList.add('hidden');
+                pdfLoading.classList.remove('hidden');
+
+                try {
+                    // Use html2canvas to capture the preview div
+                    const canvas = await html2canvas(content, {
+                        scale: 2, // Higher scale for better quality
+                        useCORS: true,
+                        logging: false
+                    });
+
+                    const imgData = canvas.toDataURL('image/png');
+
+                    // Create jsPDF instance (A4 size: 210mm x 297mm)
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = pdf.internal.pageSize.getHeight();
+                    
+                    // Calculate image dimensions to fit A4 page
+                    const canvasWidth = canvas.width;
+                    const canvasHeight = canvas.height;
+                    const canvasRatio = canvasWidth / canvasHeight;
+                    
+                    let imgWidth = pdfWidth;
+                    let imgHeight = imgWidth / canvasRatio;
+
+                    // If height is greater than page height, scale by height
+                    if (imgHeight > pdfHeight) {
+                        imgHeight = pdfHeight;
+                        imgWidth = imgHeight * canvasRatio;
+                    }
+
+                    // Add image to PDF
+                    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+                    
+                    // Save the PDF
+                    pdf.save(fileName);
+
+                } catch (error) {
+                    console.error('Error generating PDF:', error);
+                    showMessage('An error occurred while generating the PDF. Please try again.');
+                } finally {
+                    // Hide loader, show button
+                    downloadBtn.classList.remove('hidden');
+                    pdfLoading.classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
